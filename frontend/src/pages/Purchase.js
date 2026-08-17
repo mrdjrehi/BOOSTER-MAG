@@ -21,6 +21,12 @@ import {
   Venus,
   TrendingUp,
   Loader2,
+  Users,
+  Sprout,
+  Gift,
+  PartyPopper,
+  X,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,9 +35,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import api from "@/lib/api";
-import { money } from "@/lib/content";
+import { money, SERVICE_COPY } from "@/lib/content";
+import ReceiptDialog from "@/components/ReceiptDialog";
 
 const UPGRADE_ICONS = {
   zap: Zap,
@@ -40,6 +48,17 @@ const UPGRADE_ICONS = {
   heart: Heart,
   eye: Eye,
   "trending-up": TrendingUp,
+};
+
+const BENEFIT_ICONS = {
+  users: Users,
+  "shield-check": ShieldCheck,
+  sprout: Sprout,
+  heart: Heart,
+  zap: Zap,
+  "trending-up": TrendingUp,
+  eye: Eye,
+  globe: Globe,
 };
 
 const STEPS = ["Checkout", "Choose Upgrades", "Start Growing"];
@@ -62,12 +81,23 @@ export default function Purchase() {
   const [placing, setPlacing] = useState(false);
   const [order, setOrder] = useState(null);
 
+  // Phase 2 additions
+  const [bonus, setBonus] = useState(null); // {qty, price, label}
+  const [showUpgradeBump, setShowUpgradeBump] = useState(false);
+  const [showFinalOffer, setShowFinalOffer] = useState(false);
+  const [finalOfferDecided, setFinalOfferDecided] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+
+  const copy = SERVICE_COPY[service] || SERVICE_COPY.followers;
+
   useEffect(() => {
     setLoading(true);
     setStep(0);
     setSelectedPkg(null);
     setUpgrades([]);
     setOrder(null);
+    setBonus(null);
+    setFinalOfferDecided(false);
     api
       .getPackages(platform, service)
       .then((data) => {
@@ -100,13 +130,37 @@ export default function Purchase() {
       .reduce((s, u) => s + u.price, 0);
   }, [catalog, upgrades]);
 
-  const total = useMemo(() => basePrice + upgradesTotal, [basePrice, upgradesTotal]);
+  const total = useMemo(
+    () => basePrice + upgradesTotal + (bonus?.price || 0),
+    [basePrice, upgradesTotal, bonus]
+  );
   const origTotal = useMemo(() => {
     if (!tierObj) return 0;
-    return tierObj.orig * (qualityObj?.multiplier || 1) + upgradesTotal;
-  }, [tierObj, qualityObj, upgradesTotal]);
+    const bonusOrig = bonus ? bonus.price * 4 : 0; // 75% off => orig is 4x
+    return tierObj.orig * (qualityObj?.multiplier || 1) + upgradesTotal + bonusOrig;
+  }, [tierObj, qualityObj, upgradesTotal, bonus]);
 
   const PlatformIcon = platform === "tiktok" ? Music2 : Instagram;
+
+  // Next-tier upsell (order bump #1)
+  const nextTier = useMemo(() => {
+    if (!catalog || !tierObj) return null;
+    const idx = catalog.tiers.findIndex((t) => t.id === tierObj.id);
+    return idx >= 0 && idx < catalog.tiers.length - 1 ? catalog.tiers[idx + 1] : null;
+  }, [catalog, tierObj]);
+
+  const upgradeDiff = useMemo(() => {
+    if (!nextTier || !tierObj) return 0;
+    return (nextTier.price - tierObj.price) * (qualityObj?.multiplier || 1);
+  }, [nextTier, tierObj, qualityObj]);
+
+  // Final 75%-off bonus offer (order bump #2)
+  const finalBonus = useMemo(() => {
+    if (!tierObj) return null;
+    const qty = Math.max(100, Math.round((tierObj.qty * 0.5) / 100) * 100);
+    const price = Math.max(1.99, Math.round(qty * tierObj.per_unit * 0.25 * 100) / 100);
+    return { qty, price, label: `Bonus ${qty.toLocaleString()} ${catalog.service_label} (75% off)` };
+  }, [tierObj, catalog]);
 
   const toggleUpgrade = (id) =>
     setUpgrades((u) => (u.includes(id) ? u.filter((x) => x !== id) : [...u, id]));
@@ -114,16 +168,71 @@ export default function Purchase() {
   const goNextFromStep0 = () => {
     if (!selectedPkg) return toast.error("Please select a package");
     if (!username.trim()) return toast.error("Please enter your username");
+    // Order bump #1: offer next tier up
+    if (nextTier && upgradeDiff > 0) {
+      setShowUpgradeBump(true);
+      return;
+    }
+    proceedToUpgrades();
+  };
+
+  const proceedToUpgrades = () => {
+    setShowUpgradeBump(false);
     setStep(1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const placeOrder = async () => {
-    if (!email.trim()) return toast.error("Please enter your email");
-    if (!card.number || card.number.replace(/\s/g, "").length < 12)
-      return toast.error("Enter a valid card number");
-    if (!card.expiry) return toast.error("Enter card expiry");
-    if (!card.cvc) return toast.error("Enter CVV");
+  const acceptUpgradeBump = () => {
+    if (nextTier) setSelectedPkg(nextTier.id);
+    setShowUpgradeBump(false);
+    setStep(1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const validatePayment = () => {
+    if (!email.trim()) {
+      toast.error("Please enter your email");
+      return false;
+    }
+    if (!card.number || card.number.replace(/\s/g, "").length < 12) {
+      toast.error("Enter a valid card number");
+      return false;
+    }
+    if (!card.expiry) {
+      toast.error("Enter card expiry");
+      return false;
+    }
+    if (!card.cvc) {
+      toast.error("Enter CVV");
+      return false;
+    }
+    return true;
+  };
+
+  // Intercept complete-order to show the final offer once
+  const handleComplete = () => {
+    if (!validatePayment()) return;
+    if (!finalOfferDecided && finalBonus) {
+      setShowFinalOffer(true);
+      return;
+    }
+    placeOrder(bonus);
+  };
+
+  const acceptFinalOffer = () => {
+    setBonus(finalBonus);
+    setFinalOfferDecided(true);
+    setShowFinalOffer(false);
+    placeOrder(finalBonus);
+  };
+
+  const declineFinalOffer = () => {
+    setFinalOfferDecided(true);
+    setShowFinalOffer(false);
+    placeOrder(null);
+  };
+
+  const placeOrder = async (bonusArg) => {
     setPlacing(true);
     try {
       const res = await api.createOrder({
@@ -136,6 +245,9 @@ export default function Purchase() {
         email,
         upgrades,
         card_last4: card.number.replace(/\s/g, "").slice(-4),
+        bonus_qty: bonusArg?.qty || 0,
+        bonus_price: bonusArg?.price || 0,
+        bonus_label: bonusArg?.label || null,
       });
       setOrder(res);
       setStep(2);
@@ -159,10 +271,24 @@ export default function Purchase() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
       {/* Title */}
       <div className="text-center">
-        <h1 className="font-display text-4xl sm:text-5xl uppercase flex items-center justify-center gap-3">
+        <div className="inline-flex items-center gap-2 rounded-full bg-[var(--bm-surface-2)] border border-black/10 px-3 py-1 text-xs font-medium">
+          <Star className="h-3.5 w-3.5 fill-[var(--bm-amber)] text-[var(--bm-amber)]" />
+          {copy.tagline}
+        </div>
+        <h1 className="mt-3 font-display text-4xl sm:text-5xl uppercase flex items-center justify-center gap-3">
           <PlatformIcon className="h-8 w-8 text-[var(--bm-pink)]" /> Buy {catalog.platform_label}{" "}
-          {catalog.service_label}
+          {catalog.service_label} <span>{copy.headlineEmoji}</span>
         </h1>
+        <p className="mt-3 max-w-2xl mx-auto text-[var(--bm-muted)]">{copy.subtitle}</p>
+        {/* Social proof strip */}
+        <div className="mt-5 grid grid-cols-3 gap-3 max-w-xl mx-auto">
+          {copy.proof.map((p) => (
+            <div key={p.label} className="rounded-xl bg-white border border-black/10 py-3">
+              <div className="text-xl font-bold bm-text-grad">{p.value}</div>
+              <div className="text-[11px] text-[var(--bm-muted)]">{p.label}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Stepper */}
@@ -346,6 +472,39 @@ export default function Purchase() {
               </Button>
             </div>
 
+            {/* Service-specific benefits */}
+            <div className="mt-12">
+              <h2 className="font-display text-3xl uppercase text-center">
+                Why Buy {catalog.platform_label} {catalog.service_label}? {copy.emoji}
+              </h2>
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                {copy.benefits.map((b) => {
+                  const BIcon = BENEFIT_ICONS[b.icon] || Sparkles;
+                  return (
+                    <div key={b.title} className="rounded-2xl bg-white border border-black/10 p-5">
+                      <span className="grid place-items-center h-11 w-11 rounded-xl bg-[var(--bm-surface-2)]">
+                        <BIcon className="h-5 w-5 text-[var(--bm-purple)]" />
+                      </span>
+                      <h3 className="mt-3 font-semibold">{b.title}</h3>
+                      <p className="mt-1 text-sm text-[var(--bm-muted)]">{b.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Service quotes */}
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                {copy.quotes.map((q) => (
+                  <div key={q.name} className="rounded-2xl bg-[var(--bm-surface-2)] border border-black/10 p-5">
+                    <p className="text-sm italic">“{q.text}”</p>
+                    <div className="mt-2 text-xs font-semibold flex items-center gap-1">
+                      {q.name}
+                      <ShieldCheck className="h-3.5 w-3.5 text-[var(--bm-blue)]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Subscriptions */}
             <div className="mt-12">
               <h2 className="font-display text-3xl uppercase text-center">Or Go Monthly</h2>
@@ -462,6 +621,7 @@ export default function Purchase() {
               total={total}
               origTotal={origTotal}
               username={username}
+              bonus={bonus}
             />
           </motion.div>
         )}
@@ -560,7 +720,7 @@ export default function Purchase() {
                 </Button>
                 <Button
                   data-testid="payment-submit-button"
-                  onClick={placeOrder}
+                  onClick={handleComplete}
                   disabled={placing}
                   className="rounded-full bm-grad-cta text-white gap-2 flex-1 h-12"
                 >
@@ -588,6 +748,7 @@ export default function Purchase() {
               total={total}
               origTotal={origTotal}
               username={username}
+              bonus={bonus}
             />
           </motion.div>
         )}
@@ -625,6 +786,14 @@ export default function Purchase() {
               >
                 View Order Status <ArrowRight className="h-4 w-4" />
               </Button>
+              <Button
+                data-testid="confirmation-receipt-button"
+                variant="outline"
+                onClick={() => setReceiptOpen(true)}
+                className="rounded-full border-black/15 gap-2"
+              >
+                <Mail className="h-4 w-4" /> View Receipt
+              </Button>
               <Link to="/">
                 <Button variant="outline" className="rounded-full border-black/15">
                   Back Home
@@ -634,11 +803,104 @@ export default function Purchase() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Receipt (simulated email) */}
+      <ReceiptDialog order={order} open={receiptOpen} onOpenChange={setReceiptOpen} />
+
+      {/* Order Bump #1 — Upgrade to next tier */}
+      <Dialog open={showUpgradeBump} onOpenChange={setShowUpgradeBump}>
+        <DialogContent className="max-w-sm rounded-2xl" data-testid="upgrade-bump-dialog">
+          <div className="text-center">
+            <span className="mx-auto inline-grid place-items-center h-14 w-14 rounded-2xl bm-grad-cta bm-glow">
+              <Sparkles className="h-7 w-7 text-white" />
+            </span>
+            <h3 className="mt-4 font-display text-3xl uppercase">Upgrade Your Order</h3>
+            {nextTier && (
+              <>
+                <p className="mt-2 text-[var(--bm-muted)]">
+                  Get <span className="font-bold text-black">{nextTier.qty.toLocaleString()}</span>{" "}
+                  {catalog.service_label} instead of {tierObj?.qty.toLocaleString()}!
+                </p>
+                <div className="mt-4 rounded-xl bg-[var(--bm-surface-2)] p-4">
+                  <div className="text-sm text-[var(--bm-muted)]">Only</div>
+                  <div className="text-3xl font-bold bm-text-grad">
+                    +${upgradeDiff.toFixed(2)}
+                  </div>
+                  <div className="text-xs text-[var(--bm-muted)]">more</div>
+                </div>
+              </>
+            )}
+            <Button
+              data-testid="upgrade-bump-accept"
+              onClick={acceptUpgradeBump}
+              className="mt-5 w-full h-12 rounded-full bm-grad-cta text-white gap-2"
+            >
+              Upgrade Now <ArrowRight className="h-5 w-5" />
+            </Button>
+            <button
+              data-testid="upgrade-bump-skip"
+              onClick={proceedToUpgrades}
+              className="mt-3 text-sm text-[var(--bm-muted)] underline"
+            >
+              No thanks, keep {tierObj?.qty.toLocaleString()}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Bump #2 — Final 75% off offer */}
+      <Dialog open={showFinalOffer} onOpenChange={setShowFinalOffer}>
+        <DialogContent className="max-w-sm rounded-2xl" data-testid="final-offer-dialog">
+          <div className="text-center">
+            <Badge className="mx-auto bm-grad-cta text-white border-0 gap-1">
+              <Flame className="h-3 w-3" /> Final Offer — 75% Off!
+            </Badge>
+            <span className="mt-4 mx-auto inline-grid place-items-center h-14 w-14 rounded-2xl bg-[var(--bm-surface-2)]">
+              <Gift className="h-7 w-7 text-[var(--bm-purple)]" />
+            </span>
+            {finalBonus && (
+              <>
+                <h3 className="mt-3 font-display text-3xl uppercase">
+                  + {finalBonus.qty.toLocaleString()} {catalog.service_label}
+                </h3>
+                <p className="mt-1 text-[var(--bm-muted)]">
+                  Add them to your order for a one-time deal.
+                </p>
+                <div className="mt-4 rounded-xl bg-[var(--bm-surface-2)] p-4">
+                  <span className="text-sm line-through text-[var(--bm-muted)] mr-2">
+                    ${(finalBonus.price * 4).toFixed(2)}
+                  </span>
+                  <span className="text-3xl font-bold bm-text-grad">
+                    ${finalBonus.price.toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
+            <Button
+              data-testid="final-offer-accept"
+              onClick={acceptFinalOffer}
+              disabled={placing}
+              className="mt-5 w-full h-12 rounded-full bm-grad-cta text-white gap-2"
+            >
+              {placing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PartyPopper className="h-5 w-5" />}
+              Claim This Deal
+            </Button>
+            <button
+              data-testid="final-offer-decline"
+              onClick={declineFinalOffer}
+              disabled={placing}
+              className="mt-3 text-sm text-[var(--bm-muted)] underline"
+            >
+              No thanks, complete my order
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function OrderSummary({ catalog, tierObj, qualityObj, speed, upgrades, total, origTotal, username }) {
+function OrderSummary({ catalog, tierObj, qualityObj, speed, upgrades, total, origTotal, username, bonus }) {
   const speedObj = catalog.delivery_speeds.find((s) => s.id === speed);
   const selectedUpgrades = catalog.upgrades.filter((u) => upgrades.includes(u.id));
   return (
@@ -673,6 +935,12 @@ function OrderSummary({ catalog, tierObj, qualityObj, speed, upgrades, total, or
             <span className="font-medium">+${u.price.toFixed(2)}</span>
           </div>
         ))}
+        {bonus && (
+          <div className="flex justify-between">
+            <span className="text-[var(--bm-purple)] font-medium">{bonus.label}</span>
+            <span className="font-medium">+${bonus.price.toFixed(2)}</span>
+          </div>
+        )}
       </div>
       <div className="mt-4 border-t border-black/10 pt-4 flex items-baseline justify-between">
         <span className="font-semibold">Total Due</span>

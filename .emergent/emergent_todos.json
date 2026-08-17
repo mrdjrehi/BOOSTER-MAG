@@ -1,22 +1,26 @@
 [
   {
-    "content": "Phase 1: Get BOOSTER MAG design guidelines from design_agent",
-    "status": "completed"
+    "content": "Phase 2: Backend - support order bonus (final offer), manual delivered_count/progress override, single-order fetch endpoint",
+    "status": "in_progress"
   },
   {
-    "content": "Phase 1: Backend - Order/Contact models, packages config, checkout, lookup, boost, contact, admin endpoints + simulated growth",
-    "status": "completed"
+    "content": "Phase 2: Likes & Views tailored copy, emojis & social proof on service pages",
+    "status": "pending"
   },
   {
-    "content": "Phase 1: Frontend - Home, service purchase pages (multi-step checkout), Dashboard, Boost, FAQ, Contact, TOS, Admin",
-    "status": "completed"
+    "content": "Phase 2: Order-bump popups (upgrade-to-next-tier + final 75% off) in checkout",
+    "status": "pending"
   },
   {
-    "content": "Phase 1: All user stories covered (browse, checkout, track order, boost, admin)",
-    "status": "completed"
+    "content": "Phase 2: Simulated styled email receipt (confirmation + Dashboard + Admin), with tracking link",
+    "status": "pending"
   },
   {
-    "content": "Phase 1: End to End Testing using testing_agent_v3",
-    "status": "completed"
+    "content": "Phase 2: Admin per-order detail view (internal notes + manual delivered/progress)",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: End to End Testing using testing_agent_v3",
+    "status": "pending"
   }
 ]

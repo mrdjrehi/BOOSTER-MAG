@@ -163,3 +163,72 @@ export function formatNum(n) {
 export function money(n) {
   return `$${Number(n || 0).toFixed(2)}`;
 }
+
+
+// Per-service tailored marketing copy for the purchase pages.
+// Keyed by service; some strings adapt to platform label at render time.
+export const SERVICE_COPY = {
+  followers: {
+    emoji: "🚀",
+    headlineEmoji: "🔥",
+    tagline: "Build instant social proof",
+    subtitle:
+      "Grow a real-looking follower base that makes new visitors hit “Follow” on instinct. No bots vibes, no passwords.",
+    proof: [
+      { value: "1.2M+", label: "Followers delivered" },
+      { value: "24h", label: "Growth starts within" },
+      { value: "4.9/5", label: "Creator rating" },
+    ],
+    benefits: [
+      { icon: "users", title: "Instant Social Proof", desc: "A higher count makes people trust and follow you faster." },
+      { icon: "shield-check", title: "Safe & Password-Free", desc: "We only need your username — never your login." },
+      { icon: "sprout", title: "Natural Drip", desc: "Followers arrive gradually so growth looks organic." },
+    ],
+    quotes: [
+      { name: "@maya.codes", text: "My follower count doubled and brand deals started sliding in." },
+      { name: "Devon P.", text: "The drip looked totally natural — nobody suspected a thing." },
+    ],
+  },
+  likes: {
+    emoji: "❤️",
+    headlineEmoji: "💥",
+    tagline: "Make every post pop off",
+    subtitle:
+      "Stack likes on your posts to trigger the algorithm and land on more Explore pages and For You feeds.",
+    proof: [
+      { value: "8M+", label: "Likes delivered" },
+      { value: "mins", label: "Delivery kicks off in" },
+      { value: "98%", label: "Retention rate" },
+    ],
+    benefits: [
+      { icon: "heart", title: "Algorithm Boost", desc: "Early likes push your post to more feeds and Explore." },
+      { icon: "zap", title: "Lightning Delivery", desc: "Likes start landing within minutes of ordering." },
+      { icon: "trending-up", title: "Higher Engagement Rate", desc: "A strong like-to-view ratio attracts brands." },
+    ],
+    quotes: [
+      { name: "@thevibecheck", text: "One post hit Explore after I topped up the likes. Wild." },
+      { name: "Sasha R.", text: "My engagement rate finally looks pro on my media kit." },
+    ],
+  },
+  views: {
+    emoji: "👁️",
+    headlineEmoji: "📈",
+    tagline: "Go viral on the feed",
+    subtitle:
+      "Pump up views on your Reels and videos to signal the algorithm that your content deserves the spotlight.",
+    proof: [
+      { value: "25M+", label: "Views delivered" },
+      { value: "seconds", label: "First views in" },
+      { value: "∞", label: "Reach potential" },
+    ],
+    benefits: [
+      { icon: "eye", title: "Viral Momentum", desc: "High view counts snowball into organic reach." },
+      { icon: "zap", title: "Super Fast", desc: "Views begin rolling in almost immediately." },
+      { icon: "globe", title: "Wider Reach", desc: "More views = more FYP and Explore placements." },
+    ],
+    quotes: [
+      { name: "Marcus L.", text: "A slow Reel jumped to 100k organic after the boost." },
+      { name: "@tallest.polka", text: "Views are the cheat code for the For You page, fr." },
+    ],
+  },
+};

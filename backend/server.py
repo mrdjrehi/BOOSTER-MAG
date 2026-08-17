@@ -49,6 +49,9 @@ class OrderCreate(BaseModel):
     card_last4: Optional[str] = None
     is_subscription: bool = False
     subscription_id: Optional[str] = None
+    bonus_qty: int = 0
+    bonus_price: float = 0.0
+    bonus_label: Optional[str] = None
 
 
 class ContactCreate(BaseModel):
@@ -93,6 +96,7 @@ def compute_progress(order: dict):
 
     if order.get("manual_override"):
         pct = float(order.get("progress_pct", 0))
+        manual_delivered = order.get("delivered_count")
     else:
         speed = catalog.find_speed(order.get("delivery_speed", "regular"))
         window_min = speed["window_minutes"]
@@ -100,9 +104,13 @@ def compute_progress(order: dict):
             window_min = max(3, window_min * 0.15)
         elapsed_min = (datetime.now(timezone.utc) - created).total_seconds() / 60.0
         pct = max(0.0, min(100.0, (elapsed_min / window_min) * 100.0))
+        manual_delivered = None
 
     qty = int(order.get("package_qty", 0))
-    delivered = int(round(qty * pct / 100.0))
+    if manual_delivered is not None:
+        delivered = int(manual_delivered)
+    else:
+        delivered = int(round(qty * pct / 100.0))
 
     if pct <= 0:
         status = "pending"
@@ -130,6 +138,8 @@ def serialize_order(order: dict, include_email=True):
         "service_label": order.get("service_label"),
         "unit": order.get("unit"),
         "package_qty": order.get("package_qty"),
+        "base_qty": order.get("base_qty", order.get("package_qty")),
+        "bonus_qty": order.get("bonus_qty", 0),
         "quality_tier": order.get("quality_tier"),
         "delivery_speed": order.get("delivery_speed"),
         "username": order.get("username"),
@@ -194,6 +204,16 @@ async def create_order(payload: OrderCreate):
 
     total = round(base_price + upg_total + speed.get("extra", 0.0), 2)
 
+    # Optional "final offer" bonus followers/likes/views
+    bonus_qty = max(0, int(payload.bonus_qty or 0))
+    bonus_price = round(max(0.0, float(payload.bonus_price or 0.0)), 2)
+    if bonus_qty > 0 and bonus_price >= 0:
+        total = round(total + bonus_price, 2)
+        if payload.bonus_label:
+            upgrade_details.append({"id": "bonus", "name": payload.bonus_label, "price": bonus_price})
+
+    total_qty = tier["qty"] + bonus_qty
+
     order = {
         "id": str(uuid.uuid4()),
         "order_number": gen_order_number(),
@@ -203,7 +223,11 @@ async def create_order(payload: OrderCreate):
         "service_label": cat["service_label"],
         "unit": cat["unit"],
         "package_id": payload.package_id,
-        "package_qty": tier["qty"],
+        "package_qty": total_qty,
+        "base_qty": tier["qty"],
+        "bonus_qty": bonus_qty,
+        "bonus_price": bonus_price,
+        "bonus_label": payload.bonus_label,
         "quality_tier": payload.quality_tier,
         "delivery_speed": payload.delivery_speed,
         "username": payload.username.lstrip("@").strip(),
@@ -238,6 +262,14 @@ async def lookup_orders(email: Optional[str] = None, order_number: Optional[str]
 
     docs = await db.orders.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
     return {"orders": [serialize_order(d) for d in docs]}
+
+
+@api_router.get("/orders/{order_number}")
+async def get_order(order_number: str):
+    doc = await db.orders.find_one({"order_number": order_number.strip().upper()}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return serialize_order(doc)
 
 
 @api_router.post("/boost")
@@ -309,13 +341,19 @@ async def admin_update_order(order_id: str, payload: AdminOrderUpdate, _=Depends
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     update = {"updated_at": now_iso()}
+    qty = int(order.get("package_qty", 0) or 0)
     if payload.status is not None:
         update["admin_status"] = payload.status
     if payload.progress_pct is not None:
         update["progress_pct"] = payload.progress_pct
         update["manual_override"] = True
+        if qty:
+            update["delivered_count"] = int(round(qty * float(payload.progress_pct) / 100.0))
     if payload.delivered_count is not None:
-        update["delivered_count"] = payload.delivered_count
+        update["delivered_count"] = int(payload.delivered_count)
+        update["manual_override"] = True
+        if qty:
+            update["progress_pct"] = round(min(100.0, max(0.0, payload.delivered_count / qty * 100.0)), 1)
     if payload.note is not None:
         update["note"] = payload.note
     await db.orders.update_one({"id": order_id}, {"$set": update})

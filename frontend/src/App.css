@@ -1,0 +1,11 @@
+/* BOOSTER MAG - global app styles */
+.App {
+    min-height: 100vh;
+    background: var(--bm-bg);
+}
+
+::selection {
+    background: rgba(236, 72, 153, 0.25);
+}
+
+a { color: inherit; text-decoration: none; }

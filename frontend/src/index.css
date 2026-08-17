@@ -1,0 +1,121 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* BOOSTER MAG brand tokens */
+    --bm-bg: #ffffff;
+    --bm-surface: #ffffff;
+    --bm-surface-2: #f7f7fb;
+    --bm-text: #0b0b12;
+    --bm-muted: #5b5b6a;
+    --bm-purple: #6d28d9;
+    --bm-pink: #ec4899;
+    --bm-magenta: #d946ef;
+    --bm-blue: #2563eb;
+    --bm-cyan: #06b6d4;
+    --bm-amber: #f59e0b;
+    --bm-grad-cta: linear-gradient(135deg, #6d28d9 0%, #ec4899 45%, #2563eb 100%);
+    --bm-grad-hero: linear-gradient(135deg, #7c3aed 0%, #ec4899 45%, #2563eb 100%);
+    --bm-grad-border: linear-gradient(90deg, #6d28d9 0%, #ec4899 35%, #d946ef 60%, #2563eb 100%);
+    --bm-radius-card: 18px;
+    --bm-shadow-glow: 0 18px 60px rgba(109,40,217,0.18), 0 10px 40px rgba(236,72,153,0.14), 0 8px 24px rgba(37,99,235,0.12);
+    --bm-shadow-md: 0 1px 0 rgba(0,0,0,0.06), 0 18px 50px rgba(15, 15, 25, 0.10);
+}
+
+body {
+    margin: 0;
+    font-family: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--bm-bg);
+    color: var(--bm-text);
+}
+
+@layer base {
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 240 20% 6%;
+        --card: 0 0% 100%;
+        --card-foreground: 240 20% 6%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 240 20% 6%;
+        --primary: 240 20% 6%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 240 20% 97%;
+        --secondary-foreground: 240 20% 6%;
+        --muted: 240 20% 97%;
+        --muted-foreground: 240 6% 40%;
+        --accent: 240 20% 97%;
+        --accent-foreground: 240 20% 6%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 10% 88%;
+        --input: 240 10% 88%;
+        --ring: 240 10% 20%;
+        --radius: 0.9rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/* ---------- Brand utility classes ---------- */
+.font-display {
+    font-family: 'Bebas Neue', ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: 0.01em;
+}
+.bm-grad-cta { background-image: var(--bm-grad-cta); }
+.bm-grad-hero { background-image: var(--bm-grad-hero); }
+.bm-text-grad {
+    background-image: var(--bm-grad-cta);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.bm-glow { box-shadow: var(--bm-shadow-glow); }
+.bm-card-shadow { box-shadow: var(--bm-shadow-md); }
+
+/* gradient border wrapper */
+.bm-grad-ring {
+    background-image: var(--bm-grad-border);
+    padding: 1.5px;
+    border-radius: var(--bm-radius-card);
+}
+
+/* ---------- Marquee ---------- */
+.marquee {
+    display: flex;
+    width: max-content;
+    animation: bm-marquee 28s linear infinite;
+}
+.marquee-fast { animation-duration: 18s; }
+.marquee:hover { animation-play-state: paused; }
+@keyframes bm-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
+
+/* subtle blob */
+.bm-blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(60px);
+    opacity: 0.5;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .marquee { animation: none; }
+}
